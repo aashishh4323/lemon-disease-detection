@@ -1,0 +1,11 @@
+fastapi
+uvicorn[standard]
+python-multipart
+pydantic
+tensorflow
+keras
+ultralytics
+opencv-python
+Pillow
+numpy
+aiofiles
