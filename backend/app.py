@@ -9,9 +9,16 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, FileResponse
 from pydantic import BaseModel
 from pathlib import Path
+
 from schemas import ImagePayload
-from utils import ensure_directories, validate_image_filename, load_image_from_bytes, decode_base64_image
+from utils import (
+    ensure_directories,
+    validate_image_filename,
+    load_image_from_bytes,
+    decode_base64_image
+)
 from models import ModelManager
+
 
 BASE_DIR = Path(__file__).resolve().parent
 UPLOAD_DIR = BASE_DIR / "uploads"
@@ -34,7 +41,10 @@ app.add_middleware(
     allow_headers=["*"]
 )
 
-model_manager = ModelManager(models_dir=str(MODEL_DIR))
+model_manager = ModelManager(
+    models_dir=str(MODEL_DIR)
+)
+
 
 class PredictResponse(BaseModel):
     disease: str
@@ -43,11 +53,15 @@ class PredictResponse(BaseModel):
     model_used: str
     inference_time: str
     uploaded_image: str
+    result_image: str
 
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "model_loaded": True}
+    return {
+        "status": "ok",
+        "model_loaded": True
+    }
 
 
 @app.post("/predict", response_model=PredictResponse)
@@ -56,82 +70,258 @@ async def predict_image(
     payload: ImagePayload | None = Body(default=None),
 ):
     if image_file is None and payload is None:
-        raise HTTPException(status_code=400, detail="No image was provided")
+        raise HTTPException(
+            status_code=400,
+            detail="No image was provided"
+        )
 
     if image_file is not None:
-        if not validate_image_filename(image_file.filename):
-            raise HTTPException(status_code=400, detail="Unsupported file type")
+
+        if not validate_image_filename(
+            image_file.filename
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail="Unsupported file type"
+            )
+
         contents = await image_file.read()
-        filename = f"{uuid.uuid4().hex}_{image_file.filename}"
+
+        filename = (
+            f"{uuid.uuid4().hex}_"
+            f"{image_file.filename}"
+        )
+
     else:
-        contents = decode_base64_image(payload.image)
-        filename = f"{uuid.uuid4().hex}.png"
+
+        contents = decode_base64_image(
+            payload.image
+        )
+
+        filename = (
+            f"{uuid.uuid4().hex}.png"
+        )
 
     upload_path = UPLOAD_DIR / filename
+
     upload_path.write_bytes(contents)
 
-    image = load_image_from_bytes(contents)
+    image = load_image_from_bytes(
+        contents
+    )
 
     start_time = time.time()
-    detections = model_manager.detect(image)
-    label_index, confidence, raw_predictions = model_manager.classify(image)
-    disease_name = model_manager.get_class_label(label_index)
 
-    inference_time = f"{time.time() - start_time:.2f} sec"
+    detections = model_manager.detect(
+        image
+    )
+
+    label_index, confidence, raw_predictions = (
+        model_manager.classify(image)
+    )
+
+    disease_name = (
+        model_manager.get_class_label(
+            label_index
+        )
+    )
+
+    # ==========================
+    # RED BOX IMAGE GENERATION
+    # ==========================
+
+    boxed_image = (
+        model_manager.draw_disease_boxes(
+            image
+        )
+    )
+
+    result_filename = (
+        f"detected_{filename}"
+    )
+
+    result_path = (
+        RESULT_DIR / result_filename
+    )
+
+    boxed_image.save(result_path)
+
+    # ==========================
+
+    inference_time = (
+        f"{time.time() - start_time:.2f} sec"
+    )
+
     response = {
         "disease": disease_name,
-        "confidence": round(confidence, 4),
+        "confidence": round(
+            confidence,
+            4
+        ),
         "bounding_boxes": detections,
-        "model_used": "DenseNet121.keras + YOLOv10",
-        "inference_time": inference_time,
-        "uploaded_image": f"/uploads/{filename}",
+        "model_used":
+            "DenseNet121.keras + YOLOv10",
+        "inference_time":
+            inference_time,
+        "uploaded_image":
+            f"/uploads/{filename}",
+
+        # NEW
+        "result_image":
+            f"/results/{result_filename}"
     }
+
     return JSONResponse(response)
 
 
-@app.get("/capture", response_model=PredictResponse)
+@app.get("/capture")
 async def capture_image():
+
     capture = cv2.VideoCapture(0)
+
     if not capture.isOpened():
-        raise HTTPException(status_code=500, detail="Unable to open camera")
+        raise HTTPException(
+            status_code=500,
+            detail="Unable to open camera"
+        )
 
     ret, frame = capture.read()
+
     capture.release()
+
     if not ret or frame is None:
-        raise HTTPException(status_code=500, detail="Camera capture failed")
+        raise HTTPException(
+            status_code=500,
+            detail="Camera capture failed"
+        )
 
-    rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    image = Image.fromarray(rgb_frame)
+    rgb_frame = cv2.cvtColor(
+        frame,
+        cv2.COLOR_BGR2RGB
+    )
+
+    image = Image.fromarray(
+        rgb_frame
+    )
+
     buffer = io.BytesIO()
-    image.save(buffer, format="PNG")
-    contents = buffer.getvalue()
-    filename = f"camera_{uuid.uuid4().hex}.png"
 
-    upload_path = UPLOAD_DIR / filename
-    upload_path.write_bytes(contents)
+    image.save(
+        buffer,
+        format="PNG"
+    )
+
+    contents = buffer.getvalue()
+
+    filename = (
+        f"camera_{uuid.uuid4().hex}.png"
+    )
+
+    upload_path = (
+        UPLOAD_DIR / filename
+    )
+
+    upload_path.write_bytes(
+        contents
+    )
 
     start_time = time.time()
-    detections = model_manager.detect(image)
-    label_index, confidence, raw_predictions = model_manager.classify(image)
-    disease_name = model_manager.get_class_label(label_index)
 
-    inference_time = f"{time.time() - start_time:.2f} sec"
+    detections = model_manager.detect(
+        image
+    )
+
+    label_index, confidence, raw_predictions = (
+        model_manager.classify(image)
+    )
+
+    disease_name = (
+        model_manager.get_class_label(
+            label_index
+        )
+    )
+
+    # ==========================
+    # RED BOX IMAGE GENERATION
+    # ==========================
+
+    boxed_image = (
+        model_manager.draw_disease_boxes(
+            image
+        )
+    )
+
+    result_filename = (
+        f"detected_{filename}"
+    )
+
+    result_path = (
+        RESULT_DIR / result_filename
+    )
+
+    boxed_image.save(result_path)
+
+    # ==========================
+
+    inference_time = (
+        f"{time.time() - start_time:.2f} sec"
+    )
+
     response = {
         "disease": disease_name,
-        "confidence": round(confidence, 4),
+        "confidence": round(
+            confidence,
+            4
+        ),
         "bounding_boxes": detections,
-        "model_used": "DenseNet121.keras + YOLOv10",
-        "inference_time": inference_time,
-        "uploaded_image": f"/uploads/{filename}",
+        "model_used":
+            "DenseNet121.keras + YOLOv10",
+        "inference_time":
+            inference_time,
+        "uploaded_image":
+            f"/uploads/{filename}",
+
+        # NEW
+        "result_image":
+            f"/results/{result_filename}"
     }
+
     return JSONResponse(response)
 
 
 @app.get("/uploads/{image_name}")
-async def get_uploaded_image(image_name: str):
-    file_path = UPLOAD_DIR / image_name
+async def get_uploaded_image(
+    image_name: str
+):
+    file_path = (
+        UPLOAD_DIR / image_name
+    )
+
     if not file_path.exists():
-        raise HTTPException(status_code=404, detail="Uploaded image not found")
-    return FileResponse(file_path)
+        raise HTTPException(
+            status_code=404,
+            detail="Uploaded image not found"
+        )
+
+    return FileResponse(
+        file_path
+    )
 
 
+@app.get("/results/{image_name}")
+async def get_result_image(
+    image_name: str
+):
+    file_path = (
+        RESULT_DIR / image_name
+    )
+
+    if not file_path.exists():
+        raise HTTPException(
+            status_code=404,
+            detail="Result image not found"
+        )
+
+    return FileResponse(
+        file_path
+    )

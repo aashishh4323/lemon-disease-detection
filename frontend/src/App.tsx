@@ -4,6 +4,7 @@ const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8000';
 
 type DetectionBox = {
   class_id: number;
+  class_name: string;
   confidence: number;
   xmin: number;
   ymin: number;
@@ -18,6 +19,7 @@ type ResultPayload = {
   model_used: string;
   inference_time: string;
   uploaded_image: string;
+  result_image: string;
 };
 
 function App() {
@@ -96,7 +98,11 @@ function App() {
   const formattedBoxes = useMemo(() => {
     return result?.bounding_boxes.map((box, index) => (
       <li key={index}>
-        Class {box.class_id} ({box.confidence.toFixed(2)}) — [{box.xmin.toFixed(0)}, {box.ymin.toFixed(0)}] → [{box.xmax.toFixed(0)}, {box.ymax.toFixed(0)}]
+        <span className="box-class-name">{box.class_name || `Class ${box.class_id}`}</span>{' '}
+        <span className="box-confidence">({(box.confidence * 100).toFixed(1)}%)</span>
+        <span className="box-coords">
+           — [{box.xmin.toFixed(0)}, {box.ymin.toFixed(0)}] → [{box.xmax.toFixed(0)}, {box.ymax.toFixed(0)}]
+        </span>
       </li>
     ));
   }, [result]);
@@ -197,12 +203,16 @@ function App() {
               </div>
             </div>
 
-            <div className="preview-panel">
+            <div className="preview-panel grid two-column">
               <div className="preview-block">
-                <h3>Uploaded image</h3>
+                <h3>Original Uploaded Image</h3>
                 <img src={`${API_URL}${result.uploaded_image}`} alt="Uploaded leaf" />
               </div>
+              <div className="preview-block">
+                <h3>Detected Diseases (Bounding Boxes)</h3>
+                <img src={`${API_URL}${result.result_image}`} alt="Detected leaf" />
               </div>
+            </div>
           </div>
         </section>
       )}

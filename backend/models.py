@@ -1,6 +1,7 @@
 import os
+# pyrefly: ignore [missing-import]
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageDraw
 
 from ultralytics import YOLO
 
@@ -142,9 +143,15 @@ class ModelManager:
                 box.cls.item()
             )
 
+            class_name = self.object_detector.names.get(
+                cls,
+                f"Class {cls}"
+            )
+
             detections.append(
                 {
                     "class_id": cls,
+                    "class_name": class_name,
                     "confidence": round(conf, 4),
                     "xmin": round(x1, 2),
                     "ymin": round(y1, 2),
@@ -154,6 +161,54 @@ class ModelManager:
             )
 
         return detections
+
+    def draw_disease_boxes(
+        self,
+        image: Image.Image
+    ):
+
+        image = image.convert("RGB")
+
+        detections = self.detect(image)
+
+        output_image = image.copy()
+
+        draw = ImageDraw.Draw(output_image)
+
+        for det in detections:
+
+            x1 = det["xmin"]
+            y1 = det["ymin"]
+            x2 = det["xmax"]
+            y2 = det["ymax"]
+
+            class_id = det["class_id"]
+
+            confidence = det["confidence"]
+
+            class_name = self.object_detector.names.get(
+                class_id,
+                f"Class {class_id}"
+            )
+
+            draw.rectangle(
+                [(x1, y1), (x2, y2)],
+                outline="red",
+                width=5
+            )
+
+            label = (
+                f"{class_name} "
+                f"{confidence:.2f}"
+            )
+
+            draw.text(
+                (x1, max(0, y1 - 20)),
+                label,
+                fill="red"
+            )
+
+        return output_image
 
     def get_class_label(
         self,
@@ -173,4 +228,3 @@ class ModelManager:
             return labels[label_index]
 
         return f"Class {label_index}"
-    

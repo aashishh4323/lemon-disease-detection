@@ -277,6 +277,26 @@ body {
   color: var(--muted);
 }
 
+.box-list li {
+  margin-bottom: 8px;
+  line-height: 1.4;
+}
+
+.box-class-name {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.box-confidence {
+  color: #8bd698;
+  font-weight: 600;
+}
+
+.box-coords {
+  font-size: 0.85em;
+  opacity: 0.75;
+}
+
 .preview-panel {
   display: grid;
   gap: 20px;
